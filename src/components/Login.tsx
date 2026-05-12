@@ -20,6 +20,8 @@ export default function Login({ onLogin }: LoginProps) {
   const setStoreUsername = useGameStore(state => state.setUsername);
   const setUserId = useGameStore(state => state.setUserId);
   const setCredits = useGameStore(state => state.setCredits);
+  const setUnlockedLevels = useGameStore(state => state.setUnlockedLevels);
+  const setCompletedLevels = useGameStore(state => state.setCompletedLevels);
   const unlockAllLevels = useGameStore(state => state.unlockAllLevels);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,19 +78,30 @@ export default function Login({ onLogin }: LoginProps) {
             setUserId(data.user.id);
             setStoreUsername(username);
 
-            // Fetch their saved score
+            // Fetch their saved progress
             const { data: profileData } = await supabase
               .from('profiles')
-              .select('score')
+              .select('score, unlocked_attacker, unlocked_defender, completed_attacker, completed_defender')
               .eq('id', data.user.id)
               .single();
             
             if (profileData) {
-              setCredits(profileData.score);
+              setCredits(profileData.score || 0);
+              // Set levels (fallback to defaults if null)
+              setUnlockedLevels(
+                profileData.unlocked_attacker || 1,
+                profileData.unlocked_defender || 1
+              );
+              setCompletedLevels(
+                profileData.completed_attacker || [],
+                profileData.completed_defender || []
+              );
             } else {
               // If profile doesn't exist yet, create it
               await supabase.from('profiles').upsert({ id: data.user.id, username: username, score: 0 });
               setCredits(0);
+              setUnlockedLevels(1, 1);
+              setCompletedLevels([], []);
             }
 
             onLogin();

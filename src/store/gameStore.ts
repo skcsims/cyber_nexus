@@ -28,6 +28,8 @@ export interface GameState {
   increaseBreach: (amount: number) => void;
   unlockLevel: (role: 'attacker' | 'defender', level: number) => void;
   markLevelComplete: (role: 'attacker' | 'defender', level: number, credits: number) => void;
+  setUnlockedLevels: (attacker: number, defender: number) => void;
+  setCompletedLevels: (attacker: number[], defender: number[]) => void;
   setCurrentLevel: (level: number | null) => void;
   setMissionState: (state: 'briefing' | 'playing' | null) => void;
   unlockAllLevels: () => void;
@@ -63,15 +65,27 @@ export const useGameStore = create<GameState>((set) => ({
     const nextLevel = level + 1;
     const isCampaignWin = level === 8;
     const newCredits = state.cyberCredits + credits;
+    const newUnlocked = Math.max(state.unlockedLevels[role], Math.min(nextLevel, 8));
 
     // Background sync to Supabase (Upsert ensures row exists)
     if (supabase && state.userId) {
-      supabase.from('profiles').upsert({ 
+      const updateData: any = { 
         id: state.userId, 
         score: newCredits,
         username: state.username || 'Agent'
-      }).then(({ error }) => {
-        if (error) console.error('Failed to sync score:', error);
+      };
+
+      // Store as arrays for Supabase compatibility
+      if (role === 'attacker') {
+        updateData.unlocked_attacker = newUnlocked;
+        updateData.completed_attacker = Array.from(newCompleted);
+      } else {
+        updateData.unlocked_defender = newUnlocked;
+        updateData.completed_defender = Array.from(newCompleted);
+      }
+
+      supabase.from('profiles').upsert(updateData).then(({ error }) => {
+        if (error) console.error('Failed to sync progress:', error);
       });
     }
     
@@ -83,10 +97,19 @@ export const useGameStore = create<GameState>((set) => ({
       },
       unlockedLevels: {
         ...state.unlockedLevels,
-        [role]: Math.max(state.unlockedLevels[role], Math.min(nextLevel, 8))
+        [role]: newUnlocked
       },
       campaignComplete: isCampaignWin || state.campaignComplete
     };
+  }),
+  setUnlockedLevels: (attacker, defender) => set({ 
+    unlockedLevels: { attacker, defender } 
+  }),
+  setCompletedLevels: (attacker, defender) => set({ 
+    completedLevels: { 
+      attacker: new Set(attacker), 
+      defender: new Set(defender) 
+    } 
   }),
   setCurrentLevel: (level) => set({ currentLevel: level, missionState: level !== null ? 'briefing' : null }),
   setMissionState: (state) => set({ missionState: state }),
