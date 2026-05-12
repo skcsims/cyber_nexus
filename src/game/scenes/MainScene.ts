@@ -173,28 +173,40 @@ export class MainScene extends Phaser.Scene {
     const building = this.buildings.find(b => b.id === id);
     if (!building) return;
 
+    // Stop all current camera movement/animations
+    this.cameras.main.stopFollow();
+    this.tweens.killTweensOf(this.cameras.main);
+    this.tweens.killTweensOf(this.skyOverlay);
+
     const isoX = building.x - building.y;
     const isoY = (building.x + building.y) / 2;
 
-    this.cameras.main.pan(isoX, isoY - 50, 1200, 'Cubic.easeInOut');
-    this.cameras.main.zoomTo(2.2, 1200, 'Cubic.easeInOut');
+    // Coordinates of building center
+    this.cameras.main.pan(isoX, isoY - 40, 1000, 'Cubic.easeInOut', true);
+    this.cameras.main.zoomTo(2.4, 1000, 'Cubic.easeInOut', true);
     
-    // Dim the rest of the world
     this.tweens.add({
       targets: this.skyOverlay,
-      alpha: 0.7,
-      duration: 1000
+      alpha: 0.85,
+      duration: 1000,
+      ease: 'Power2'
     });
   }
 
   private resetView() {
-    this.cameras.main.zoomTo(1.0, 1000, 'Power2');
+    this.tweens.killTweensOf(this.cameras.main);
+    this.tweens.killTweensOf(this.skyOverlay);
+
+    this.cameras.main.zoomTo(1.0, 800, 'Cubic.easeOut', true);
+    
     this.tweens.add({
       targets: this.skyOverlay,
       alpha: 0,
-      duration: 800
+      duration: 600,
+      ease: 'Power2'
     });
-    this.focusHighestUnlocked();
+
+    this.time.delayedCall(200, () => this.focusHighestUnlocked());
   }
 
   private initAmbientParticles() {
@@ -221,7 +233,9 @@ export class MainScene extends Phaser.Scene {
     if (targetBuilding) {
       const isoX = targetBuilding.x - targetBuilding.y;
       const isoY = (targetBuilding.x + targetBuilding.y) / 2;
-      this.cameras.main.pan(isoX, isoY, 400, 'Sine.easeOut');
+      
+      this.cameras.main.stopFollow();
+      this.cameras.main.pan(isoX, isoY, 800, 'Cubic.easeInOut', true);
     }
   }
 
