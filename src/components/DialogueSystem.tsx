@@ -21,9 +21,10 @@ export default function DialogueSystem() {
     const text = activeDialogue.text;
     
     const interval = setInterval(() => {
-      setDisplayedText((prev) => prev + text[index]);
-      index++;
-      if (index >= text.length) {
+      if (index < text.length) {
+        setDisplayedText((prev) => prev + text[index]);
+        index++;
+      } else {
         clearInterval(interval);
         setIsTyping(false);
       }

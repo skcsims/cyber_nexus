@@ -23,15 +23,21 @@ export default function GameHub() {
   // Trigger intro dialogue on first load
   React.useEffect(() => {
     if (role && username && !showStats) {
-      setTimeout(() => {
+      const isAttacker = role === 'attacker';
+      const introText = isAttacker 
+        ? `Operative ${username}, connection established via the Void. The Nexus architecture is vulnerable. We have ${breachMeter}% penetration already. Your objective: Total system blackout. Begin infiltration.`
+        : `Guardian ${username}, the Oracle link is secure. Nexus stability is at ${(100 - breachMeter).toFixed(1)}%. Threat levels are rising in the outer sectors. Maintain the perimeter. Select a node to authorize defense protocols.`;
+
+      const timer = setTimeout(() => {
         setDialogue({
-          npc: role === 'attacker' ? 'VOID' : 'ORACLE',
-          text: `Welcome, ${username}. The Nexus is currently at ${(100 - breachMeter).toFixed(1)}% stability. Your mission is clear. Select a node to begin operations.`,
-          id: 'MSG_001'
+          npc: isAttacker ? 'VOID' : 'ORACLE',
+          text: introText,
+          id: isAttacker ? 'VOID_INIT_001' : 'ORC_INIT_001'
         });
       }, 1500);
+      return () => clearTimeout(timer);
     }
-  }, [role, username]);
+  }, [role, username, breachMeter, setDialogue, showStats]);
   
   const isAttacker = role === 'attacker';
 
