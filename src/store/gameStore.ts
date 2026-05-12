@@ -20,6 +20,7 @@ export interface GameState {
   campaignComplete: boolean;
   currentLevel: number | null;
   missionState: 'briefing' | 'playing' | null;
+  activeDialogue: { npc: string; text: string; id: string } | null;
   setUsername: (name: string | null) => void;
   setUserId: (id: string | null) => void;
   setCredits: (amount: number) => void;
@@ -32,6 +33,7 @@ export interface GameState {
   setCompletedLevels: (attacker: number[], defender: number[]) => void;
   setCurrentLevel: (level: number | null) => void;
   setMissionState: (state: 'briefing' | 'playing' | null) => void;
+  setDialogue: (dialogue: { npc: string; text: string; id: string } | null) => void;
   unlockAllLevels: () => void;
 }
 
@@ -46,6 +48,7 @@ export const useGameStore = create<GameState>((set) => ({
   campaignComplete: false,
   currentLevel: null,
   missionState: null,
+  activeDialogue: null,
   setUsername: (name) => set({ username: name }),
   setUserId: (id) => set({ userId: id }),
   setCredits: (amount) => set({ cyberCredits: amount }),
@@ -113,6 +116,7 @@ export const useGameStore = create<GameState>((set) => ({
   }),
   setCurrentLevel: (level) => set({ currentLevel: level, missionState: level !== null ? 'briefing' : null }),
   setMissionState: (state) => set({ missionState: state }),
+  setDialogue: (dialogue) => set({ activeDialogue: dialogue }),
   unlockAllLevels: () => set({
     unlockedLevels: { attacker: 8, defender: 8 },
     completedLevels: { 

@@ -30,17 +30,33 @@ export class MainScene extends Phaser.Scene {
   private dataPackets: { x: number; y: number; targetX: number; targetY: number; progress: number; speed: number; pathIndex: number }[] = [];
   private dataPacketGraphics!: Phaser.GameObjects.Graphics;
   private glowPulseTime: number = 0;
+  
+  // Immersive Effects
+  private timeOfDay: number = 0.5; // 0 = Midday, 0.5 = Midnight, 1.0 = Midday
+  private weatherMode: 'clear' | 'digital_rain' | 'data_storm' = 'digital_rain';
+  private rainParticles: { x: number; y: number; length: number; speed: number; alpha: number }[] = [];
+  private rainGraphics!: Phaser.GameObjects.Graphics;
+  private backgroundRect!: Phaser.GameObjects.Rectangle;
+  private skyOverlay!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super({ key: 'MainScene' });
   }
 
   create() {
+    // Background fill
+    this.backgroundRect = this.add.rectangle(0, 0, 4000, 3000, 0x050507).setScrollFactor(0);
+    this.skyOverlay = this.add.graphics().setScrollFactor(0);
+
     this.drawIsometricGrid();
     
     // Ambient particle layer (behind everything)
     this.ambientGraphics = this.add.graphics();
     this.initAmbientParticles();
+    
+    // Weather layer
+    this.rainGraphics = this.add.graphics();
+    this.initRainParticles();
 
     this.pathGraphics = this.add.graphics();
     this.dataPacketGraphics = this.add.graphics();
@@ -135,6 +151,50 @@ export class MainScene extends Phaser.Scene {
       const newZoom = this.cameras.main.zoom - zoomStep;
       this.cameras.main.zoom = Phaser.Math.Clamp(newZoom, 0.4, 2.5);
     });
+
+    // Listen for zoom requests from React
+    this.registry.events.on('zoom_to_building', (id: number) => this.zoomToBuilding(id));
+    this.registry.events.on('reset_view', () => this.resetView());
+  }
+
+  private initRainParticles() {
+    for (let i = 0; i < 150; i++) {
+      this.rainParticles.push({
+        x: Phaser.Math.Between(-1200, 1200),
+        y: Phaser.Math.Between(-800, 800),
+        length: Phaser.Math.Between(10, 30),
+        speed: Phaser.Math.Between(15, 25),
+        alpha: Math.random() * 0.4 + 0.1
+      });
+    }
+  }
+
+  private zoomToBuilding(id: number) {
+    const building = this.buildings.find(b => b.id === id);
+    if (!building) return;
+
+    const isoX = building.x - building.y;
+    const isoY = (building.x + building.y) / 2;
+
+    this.cameras.main.pan(isoX, isoY - 50, 1200, 'Cubic.easeInOut');
+    this.cameras.main.zoomTo(2.2, 1200, 'Cubic.easeInOut');
+    
+    // Dim the rest of the world
+    this.tweens.add({
+      targets: this.skyOverlay,
+      alpha: 0.7,
+      duration: 1000
+    });
+  }
+
+  private resetView() {
+    this.cameras.main.zoomTo(1.0, 1000, 'Power2');
+    this.tweens.add({
+      targets: this.skyOverlay,
+      alpha: 0,
+      duration: 800
+    });
+    this.focusHighestUnlocked();
   }
 
   private initAmbientParticles() {
@@ -596,10 +656,50 @@ export class MainScene extends Phaser.Scene {
 
   update(_time: number, delta: number) {
     this.glowPulseTime += delta * 0.001;
+    
+    // 1. DAY/NIGHT CYCLE (very slow progression)
+    this.timeOfDay = (this.timeOfDay + 0.00005) % 1.0;
+    const nightIntensity = Math.abs(Math.sin(this.timeOfDay * Math.PI)); // 1 is midnight, 0 is midday
+    
+    // Update background and grid based on time
+    const skyColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+      Phaser.Display.Color.IntegerToColor(0x0a192f), // Night
+      Phaser.Display.Color.IntegerToColor(0x0f172a), // Deep Blue/Midday
+      100, 
+      (1 - nightIntensity) * 100
+    );
+    this.backgroundRect.setFillStyle(Phaser.Display.Color.ObjectToColor(skyColor).color);
 
-    // Ambient particles animated below
+    // 2. DIGITAL RAIN
+    this.rainGraphics.clear();
+    if (this.weatherMode === 'digital_rain') {
+      const role = this.registry.get('role');
+      const rainColor = role === 'attacker' ? 0xef4444 : 0x38bdf8;
+      
+      this.rainParticles.forEach(p => {
+        p.y += p.speed;
+        p.x -= p.speed * 0.2; // Slight slant
 
-    // Animate ambient particles
+        if (p.y > 1000) {
+          p.y = -800;
+          p.x = Phaser.Math.Between(-1200, 1200);
+        }
+
+        this.rainGraphics.lineStyle(1, rainColor, p.alpha * nightIntensity);
+        this.rainGraphics.beginPath();
+        this.rainGraphics.moveTo(p.x, p.y);
+        this.rainGraphics.lineTo(p.x - p.length * 0.2, p.y + p.length);
+        this.rainGraphics.strokePath();
+
+        // Small splash dot
+        if (Math.random() > 0.98) {
+           this.rainGraphics.fillStyle(rainColor, p.alpha * 0.5);
+           this.rainGraphics.fillCircle(p.x, p.y, 1);
+        }
+      });
+    }
+
+    // 3. AMBIENT PARTICLES
     this.ambientGraphics.clear();
     for (const p of this.ambientParticles) {
       p.x += p.vx;
@@ -612,11 +712,11 @@ export class MainScene extends Phaser.Scene {
       if (p.y > 600) p.y = -600;
 
       const flickerAlpha = p.alpha * (0.6 + Math.sin(this.glowPulseTime * 2 + p.x * 0.01) * 0.4);
-      this.ambientGraphics.fillStyle(0x38bdf8, flickerAlpha);
+      this.ambientGraphics.fillStyle(0x38bdf8, flickerAlpha * nightIntensity);
       this.ambientGraphics.fillCircle(p.x, p.y, p.size);
     }
 
-    // Animate data packets along paths
+    // 4. DATA PACKETS
     this.dataPacketGraphics.clear();
     const role = this.registry.get('role');
     const packetColor = role === 'attacker' ? 0xef4444 : 0x38bdf8;
@@ -636,7 +736,7 @@ export class MainScene extends Phaser.Scene {
       this.dataPacketGraphics.fillCircle(px, py, 2.5);
     }
 
-    // Pulse glow on building bases
+    // 5. PULSE GLOW
     const pulse = Math.sin(this.glowPulseTime * 1.5) * 0.04 + 0.08;
     this.buildings.forEach((b) => {
       const glowG = this.buildingGlows.get(b.id);

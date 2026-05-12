@@ -56,10 +56,19 @@ export default function PhaserGame() {
   // Update registry when state changes
   useEffect(() => {
     if (phaserGameRef.current) {
-      phaserGameRef.current.registry.set('role', role);
-      phaserGameRef.current.registry.set('unlockedLevels', unlockedLevels);
-      phaserGameRef.current.registry.set('completedLevels', completedLevels);
-      phaserGameRef.current.registry.set('currentLevel', currentLevel);
+      const registry = phaserGameRef.current.registry;
+      registry.set('role', role);
+      registry.set('unlockedLevels', unlockedLevels);
+      registry.set('completedLevels', completedLevels);
+      
+      if (currentLevel !== registry.get('currentLevel')) {
+        registry.set('currentLevel', currentLevel);
+        if (currentLevel !== null) {
+          registry.events.emit('zoom_to_building', currentLevel);
+        } else {
+          registry.events.emit('reset_view');
+        }
+      }
     }
   }, [role, unlockedLevels, completedLevels, currentLevel]);
 

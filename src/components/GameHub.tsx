@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useGameStore } from '../store/gameStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import PhaserGame from './PhaserGame';
 import MinigameModal from './MinigameModal';
 import MissionBriefing from './MissionBriefing';
 import StatsModal from './StatsModal';
+import DialogueSystem from './DialogueSystem';
 import { ArrowLeftRight, Coins, AlertTriangle, Radio, Trophy } from 'lucide-react';
 
 export default function GameHub() {
@@ -15,7 +16,22 @@ export default function GameHub() {
   const cyberCredits = useGameStore((state) => state.cyberCredits);
   const breachMeter = useGameStore((state) => state.breachMeter);
   const campaignComplete = useGameStore((state) => state.campaignComplete);
-  const [showStats, setShowStats] = useState(false);
+  const setDialogue = useGameStore((state) => state.setDialogue);
+  const username = useGameStore((state) => state.username);
+  const [showStats, setShowStats] = React.useState(false);
+
+  // Trigger intro dialogue on first load
+  React.useEffect(() => {
+    if (role && username && !showStats) {
+      setTimeout(() => {
+        setDialogue({
+          npc: role === 'attacker' ? 'VOID' : 'ORACLE',
+          text: `Welcome, ${username}. The Nexus is currently at ${(100 - breachMeter).toFixed(1)}% stability. Your mission is clear. Select a node to begin operations.`,
+          id: 'MSG_001'
+        });
+      }, 1500);
+    }
+  }, [role, username]);
   
   const isAttacker = role === 'attacker';
 
@@ -154,6 +170,9 @@ export default function GameHub() {
           <StatsModal onClose={() => setShowStats(false)} />
         )}
       </AnimatePresence>
+
+      {/* Narrative Dialogue Layer */}
+      <DialogueSystem />
     </div>
   );
 }
